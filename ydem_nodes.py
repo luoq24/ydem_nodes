@@ -41,11 +41,6 @@ class YDemPoseFilter:
         from . import pose_filter_core
         importlib.reload(pose_filter_core)
         
-        # 打印调试信息
-        print("=== YDemPoseFilter 热更新测试 ===")
-        print(f"模块重新加载成功: {pose_filter_core.__name__}")
-        print(f"模块文件路径: {pose_filter_core.__file__}")
-        
         # 创建过滤器实例并执行过滤
         filter_core = pose_filter_core.PoseFilterCore()
         result = filter_core.filter_pose(pose_keypoint, input_pose_order, input_pose_index)
