@@ -174,8 +174,8 @@ class PoseFilterCore:
         is_list_input = isinstance(pose_keypoint, list)
         
         try:
-            target_index = int(input_pose_index.strip())
-        except ValueError:
+            target_index = int(input_pose_index)
+        except (ValueError, TypeError):
             target_index = 0
         
         # 解析强制重设配置
