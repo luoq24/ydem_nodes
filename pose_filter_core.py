@@ -129,7 +129,8 @@ class PoseFilterCore:
             'top': 'top-bottom',
             'bottom': 'bottom-top',
             'small': 'small-large',
-            'large': 'large-small'
+            'large': 'large-small',
+            'empty': 'empty'  # 不输出pose数据
         }
         
         # 分割多组配置
@@ -242,6 +243,8 @@ class PoseFilterCore:
         # 当前使用的排序策略和选人序号
         current_order = input_pose_order
         current_index = target_index
+        # 是否清空pose数据的标志
+        empty_mode = False
         
         # 遍历所有帧进行过滤
         for frame_idx, frame in enumerate(frames):
@@ -257,13 +260,28 @@ class PoseFilterCore:
             # 检查是否需要强制重设
             if frame_idx in reset_config:
                 current_order, current_index = reset_config[frame_idx]
-                sorted_frame_persons = self.sort_persons(frame_persons, current_order)
-                if current_index >= len(sorted_frame_persons):
-                    current_index = 0
-                target_person = sorted_frame_persons[current_index]
-                frame['persons'] = [target_person]
-                frame['people'] = [target_person]
-                self.last_target_bbox = self.get_person_bbox(target_person)
+                
+                # 检查是否是empty策略
+                if current_order == 'empty':
+                    empty_mode = True
+                    frame['persons'] = []
+                    frame['people'] = []
+                    continue
+                else:
+                    empty_mode = False
+                    sorted_frame_persons = self.sort_persons(frame_persons, current_order)
+                    if current_index >= len(sorted_frame_persons):
+                        current_index = 0
+                    target_person = sorted_frame_persons[current_index]
+                    frame['persons'] = [target_person]
+                    frame['people'] = [target_person]
+                    self.last_target_bbox = self.get_person_bbox(target_person)
+                    continue
+            
+            # 如果处于empty模式，清空pose数据
+            if empty_mode:
+                frame['persons'] = []
+                frame['people'] = []
                 continue
             
             if frame_idx == 0:
