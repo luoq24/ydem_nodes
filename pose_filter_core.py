@@ -136,12 +136,28 @@ class PoseFilterCore:
                 first_item = pose_keypoint[0]
                 canvas_height = first_item.get('canvas_height', 512)
                 canvas_width = first_item.get('canvas_width', 512)
-                pose_data = {
-                    "version": "1.0",
-                    "canvas_height": canvas_height,
-                    "canvas_width": canvas_width,
-                    "frames": [frame.copy() for frame in pose_keypoint]
-                }
+                
+                # 检查输入列表是否是帧列表还是包含frames字段的对象列表
+                if 'frames' in first_item:
+                    # 输入是包含frames字段的对象列表，需要合并所有帧
+                    all_frames = []
+                    for item in pose_keypoint:
+                        if isinstance(item, dict) and 'frames' in item:
+                            all_frames.extend([f.copy() for f in item['frames']])
+                    pose_data = {
+                        "version": "1.0",
+                        "canvas_height": canvas_height,
+                        "canvas_width": canvas_width,
+                        "frames": all_frames
+                    }
+                else:
+                    # 输入本身就是帧列表
+                    pose_data = {
+                        "version": "1.0",
+                        "canvas_height": canvas_height,
+                        "canvas_width": canvas_width,
+                        "frames": [frame.copy() for frame in pose_keypoint]
+                    }
             else:
                 pose_data = {"version": "1.0", "canvas_height": 512, "canvas_width": 512, "frames": []}
         else:
