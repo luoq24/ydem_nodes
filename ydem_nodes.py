@@ -79,6 +79,7 @@ class YDemPoseFilter:
                     {"default": "large-small"}
                 ),
                 "input_pose_index": ("STRING", {"default": "0"}),
+                "force_reset_frames": ("STRING", {"default": ""}),
             },
         }
     
@@ -87,7 +88,7 @@ class YDemPoseFilter:
     FUNCTION = "process"
     CATEGORY = "ydem_nodes/pose"
     
-    def process(self, pose_keypoint, input_pose_order, input_pose_index):
+    def process(self, pose_keypoint, input_pose_order, input_pose_index, force_reset_frames=""):
         """过滤POSE_KEYPOINT，仅保留指定人物"""
         # 动态导入核心模块，支持开发阶段热更新
         import importlib
@@ -106,7 +107,7 @@ class YDemPoseFilter:
         
         # 创建过滤器实例并执行过滤
         filter_core = pose_filter_core.PoseFilterCore()
-        result = filter_core.filter_pose(pose_keypoint, input_pose_order, input_pose_index)
+        result = filter_core.filter_pose(pose_keypoint, input_pose_order, input_pose_index, force_reset_frames)
         
         return (result,)
 

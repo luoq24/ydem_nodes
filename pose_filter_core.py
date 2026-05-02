@@ -115,7 +115,60 @@ class PoseFilterCore:
         
         return sorted(persons, key=get_sort_key)
     
-    def filter_pose(self, pose_keypoint, input_pose_order, input_pose_index):
+    def parse_force_reset_frames(self, force_reset_frames):
+        """解析强制重设帧配置，返回帧号到(排序策略, 选人序号)的映射"""
+        reset_config = {}
+        
+        if not force_reset_frames or not force_reset_frames.strip():
+            return reset_config
+        
+        # 支持的排序策略简写映射
+        valid_strategies = {
+            'left': 'left-right',
+            'right': 'right-left', 
+            'top': 'top-bottom',
+            'bottom': 'bottom-top',
+            'small': 'small-large',
+            'large': 'large-small'
+        }
+        
+        # 分割多组配置
+        groups = force_reset_frames.split(';')
+        
+        for group in groups:
+            group = group.strip()
+            if not group:
+                continue
+            
+            parts = group.split('_')
+            if len(parts) != 3:
+                raise ValueError(f"无效的强制重设配置格式: {group}，正确格式应为'帧序号_策略简写_选人序号'")
+            
+            try:
+                frame_num = int(parts[0])
+            except ValueError:
+                raise ValueError(f"帧序号必须是整数: {parts[0]}")
+            
+            if frame_num <= 0:
+                raise ValueError(f"帧序号必须大于0: {frame_num}")
+            
+            strategy_short = parts[1]
+            if strategy_short not in valid_strategies:
+                raise ValueError(f"无效的选人顺序策略简写: {strategy_short}，可选值: {list(valid_strategies.keys())}")
+            
+            try:
+                pose_index = int(parts[2])
+            except ValueError:
+                raise ValueError(f"选人序号必须是整数: {parts[2]}")
+            
+            if pose_index < 0:
+                raise ValueError(f"选人序号不能为负数: {pose_index}")
+            
+            reset_config[frame_num] = (valid_strategies[strategy_short], pose_index)
+        
+        return reset_config
+    
+    def filter_pose(self, pose_keypoint, input_pose_order, input_pose_index, force_reset_frames=""):
         """过滤POSE_KEYPOINT数据，仅保留指定人物"""
         is_list_input = isinstance(pose_keypoint, list)
         
@@ -123,6 +176,9 @@ class PoseFilterCore:
             target_index = int(input_pose_index.strip())
         except ValueError:
             target_index = 0
+        
+        # 解析强制重设配置
+        reset_config = self.parse_force_reset_frames(force_reset_frames)
         
         # 解析POSE_KEYPOINT数据
         if isinstance(pose_keypoint, str):
@@ -176,13 +232,16 @@ class PoseFilterCore:
         if not persons:
             return pose_keypoint if is_list_input else pose_data
         
+        # 获取第一帧的目标人物
         sorted_persons = self.sort_persons(persons, input_pose_order)
-        
         if target_index >= len(sorted_persons):
             target_index = 0
-        
         target_person = sorted_persons[target_index]
         self.last_target_bbox = self.get_person_bbox(target_person)
+        
+        # 当前使用的排序策略和选人序号
+        current_order = input_pose_order
+        current_index = target_index
         
         # 遍历所有帧进行过滤
         for frame_idx, frame in enumerate(frames):
@@ -193,6 +252,18 @@ class PoseFilterCore:
             if not frame_persons:
                 frame['persons'] = []
                 frame['people'] = []
+                continue
+            
+            # 检查是否需要强制重设
+            if frame_idx in reset_config:
+                current_order, current_index = reset_config[frame_idx]
+                sorted_frame_persons = self.sort_persons(frame_persons, current_order)
+                if current_index >= len(sorted_frame_persons):
+                    current_index = 0
+                target_person = sorted_frame_persons[current_index]
+                frame['persons'] = [target_person]
+                frame['people'] = [target_person]
+                self.last_target_bbox = self.get_person_bbox(target_person)
                 continue
             
             if frame_idx == 0:
