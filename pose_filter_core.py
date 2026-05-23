@@ -1,5 +1,6 @@
 """POSE_KEYPOINT人物过滤核心逻辑"""
 
+import copy
 import json
 
 class PoseFilterCore:
@@ -308,6 +309,135 @@ class PoseFilterCore:
                 frame['persons'] = []
                 frame['people'] = []
         
+        # 返回与输入相同的格式
+        if is_list_input:
+            return frames
+        return pose_data
+
+
+class PoseHandRemoveCore:
+    """手部关键点移除核心类"""
+
+    # COCO-WholeBody 133点格式中手部的索引范围 (每个关键点3个值: x, y, score)
+    LEFT_HAND_START = 91 * 3   # 273
+    LEFT_HAND_END = 112 * 3    # 336 (exclusive)
+    RIGHT_HAND_START = 112 * 3 # 336
+    RIGHT_HAND_END = 133 * 3   # 399 (exclusive)
+
+    def parse_frames(self, frames_str):
+        """解析帧范围字符串，如 '1_5;13_20'，返回0-based的帧索引集合"""
+        frame_set = set()
+        if not frames_str or not frames_str.strip():
+            return frame_set
+
+        segments = frames_str.split(';')
+        for segment in segments:
+            segment = segment.strip()
+            if not segment:
+                continue
+
+            parts = segment.split('_')
+            if len(parts) != 2:
+                raise ValueError(f"无效的帧范围格式: {segment}，正确格式应为'起始帧_结束帧'")
+
+            try:
+                start = int(parts[0]) - 1  # 转为0-based索引
+                end = int(parts[1]) - 1    # 转为0-based索引
+            except ValueError:
+                raise ValueError(f"帧序号必须是整数: {segment}")
+
+            if start < 0 or end < 0:
+                raise ValueError(f"帧序号必须大于0: {segment}")
+
+            if start > end:
+                start, end = end, start
+
+            for i in range(start, end + 1):
+                frame_set.add(i)
+
+        return frame_set
+
+    def remove_hands(self, pose_keypoint, left_hand, right_hand, frames_str):
+        """移除指定帧的手部关键点"""
+        if not left_hand and not right_hand:
+            return pose_keypoint
+
+        is_list_input = isinstance(pose_keypoint, list)
+        target_frames = self.parse_frames(frames_str)
+
+        # 如果没有指定帧范围，不处理
+        if not target_frames:
+            return pose_keypoint
+
+        # 解析POSE_KEYPOINT数据
+        if isinstance(pose_keypoint, str):
+            pose_data = json.loads(pose_keypoint)
+            if 'frames' in pose_data:
+                pose_data['frames'] = copy.deepcopy(pose_data['frames'])
+        elif isinstance(pose_keypoint, dict):
+            pose_data = pose_keypoint.copy()
+            if 'frames' in pose_data:
+                pose_data['frames'] = copy.deepcopy(pose_data['frames'])
+        elif isinstance(pose_keypoint, list):
+            if pose_keypoint and isinstance(pose_keypoint[0], dict):
+                first_item = pose_keypoint[0]
+                canvas_height = first_item.get('canvas_height', 512)
+                canvas_width = first_item.get('canvas_width', 512)
+
+                if 'frames' in first_item:
+                    all_frames = []
+                    for item in pose_keypoint:
+                        if isinstance(item, dict) and 'frames' in item:
+                            all_frames.extend(copy.deepcopy(item['frames']))
+                    pose_data = {
+                        "version": "1.0",
+                        "canvas_height": canvas_height,
+                        "canvas_width": canvas_width,
+                        "frames": all_frames
+                    }
+                else:
+                    pose_data = {
+                        "version": "1.0",
+                        "canvas_height": canvas_height,
+                        "canvas_width": canvas_width,
+                        "frames": copy.deepcopy(pose_keypoint)
+                    }
+            else:
+                return pose_keypoint
+        else:
+            return pose_keypoint
+
+        frames = pose_data.get('frames', [])
+
+        # 处理目标帧
+        for frame_idx, frame in enumerate(frames):
+            if frame_idx not in target_frames:
+                continue
+
+            persons = frame.get('persons', [])
+            if not persons:
+                persons = frame.get('people', [])
+
+            for person in persons:
+                # 处理分开存储的手部关键点（OpenPose格式）
+                if left_hand:
+                    if 'hand_left_keypoints_2d' in person:
+                        person['hand_left_keypoints_2d'] = [0.0] * len(person['hand_left_keypoints_2d'])
+
+                if right_hand:
+                    if 'hand_right_keypoints_2d' in person:
+                        person['hand_right_keypoints_2d'] = [0.0] * len(person['hand_right_keypoints_2d'])
+
+                # 处理统一存储的关键点（COCO-WholeBody 133点格式）
+                keypoints = person.get('pose_keypoints_2d', [])
+                if len(keypoints) >= self.RIGHT_HAND_END:  # 133 * 3 = 399
+                    if left_hand:
+                        for i in range(self.LEFT_HAND_START, self.LEFT_HAND_END):
+                            keypoints[i] = 0.0
+                    if right_hand:
+                        for i in range(self.RIGHT_HAND_START, self.RIGHT_HAND_END):
+                            keypoints[i] = 0.0
+
         # 返回与输入相同的格式
         if is_list_input:
             return frames

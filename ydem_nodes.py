@@ -97,13 +97,44 @@ class YDemPoseFilter:
         
         return (result,)
 
+
+class YDemPoseRemoveHand:
+    """移除POSE_KEYPOINT指定帧的手部关键点"""
+    
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "pose_keypoint": ("POSE_KEYPOINT",),
+                "left_hand": ("BOOLEAN", {"default": False}),
+                "right_hand": ("BOOLEAN", {"default": False}),
+                "frames": ("STRING", {"default": ""}),
+            },
+        }
+    
+    RETURN_TYPES = ("POSE_KEYPOINT",)
+    RETURN_NAMES = ("pose_keypoint",)
+    FUNCTION = "process"
+    CATEGORY = "ydem_nodes/pose"
+    
+    def process(self, pose_keypoint, left_hand, right_hand, frames):
+        """移除指定帧的手部关键点"""
+        from . import pose_filter_core
+        
+        remove_core = pose_filter_core.PoseHandRemoveCore()
+        result = remove_core.remove_hands(pose_keypoint, left_hand, right_hand, frames)
+        
+        return (result,)
+
 # 节点映射
 NODE_CLASS_MAPPINGS = {
     "YDemPoseFilter": YDemPoseFilter,
     "YDemPoseRenderer": YDemPoseRenderer,
+    "YDemPoseRemoveHand": YDemPoseRemoveHand,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "YDemPoseFilter": "YDem Pose Filter",
     "YDemPoseRenderer": "YDem Pose Renderer",
+    "YDemPoseRemoveHand": "YDem Pose Remove Hand",
 }
