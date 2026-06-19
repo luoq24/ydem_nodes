@@ -126,15 +126,49 @@ class YDemPoseRemoveHand:
         
         return (result,)
 
+class YDemLoadTextFile:
+    """读取本地文本文件，输出 STRING 和 ANY（可连接 QwenEditOutputExtractor）"""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "file_path": ("STRING", {"default": "", "multiline": False}),
+            },
+        }
+
+    RETURN_TYPES = ("STRING", "ANY")
+    RETURN_NAMES = ("text_content", "data")
+    FUNCTION = "load_file"
+    CATEGORY = "ydem_nodes/io"
+
+    def load_file(self, file_path=""):
+        if not file_path:
+            raise ValueError("file_path 不能为空")
+
+        with open(file_path, "r", encoding="utf-8") as f:
+            text_content = f.read()
+
+        # 尝试按 JSON 解析，失败则原样返回
+        try:
+            data = json.loads(text_content)
+        except (json.JSONDecodeError, ValueError):
+            data = text_content
+
+        return (text_content, data)
+
+
 # 节点映射
 NODE_CLASS_MAPPINGS = {
     "YDemPoseFilter": YDemPoseFilter,
     "YDemPoseRenderer": YDemPoseRenderer,
     "YDemPoseRemoveHand": YDemPoseRemoveHand,
+    "YDemLoadTextFile": YDemLoadTextFile,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "YDemPoseFilter": "YDem Pose Filter",
     "YDemPoseRenderer": "YDem Pose Renderer",
     "YDemPoseRemoveHand": "YDem Pose Remove Hand",
+    "YDemLoadTextFile": "YDem Load Text File",
 }
